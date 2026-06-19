@@ -28,3 +28,5 @@ The saved evidence_threshold is the label threshold used by evaluation and predi
 All fusion scores are aligned with 1 = rumor, so inal_prob always means P(rumor).
 
 RumorDetectionPipeline connects ensemble probabilities, retriever results, structure features, fusion, and explanation fields in one prediction path.
+
+Each prediction returns structured evidence so downstream JSON and reports can be traced back to the same model run.
