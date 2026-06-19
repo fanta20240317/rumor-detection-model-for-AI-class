@@ -1,9 +1,6 @@
 import unittest
 
-
 from src.retriever import RetrievedEvidence
-
-
 
 
 class RetrieverContractTests(unittest.TestCase):
@@ -13,7 +10,9 @@ class RetrieverContractTests(unittest.TestCase):
         self.assertGreater(item.similarity, 0.0)
 
 
-
-
 if __name__ == "__main__":
-    unittest.main()
+ unittest.main()
+class EvidenceFeatureContractTests(unittest.TestCase):
+    def test_evidence_module_imports(self):
+        import src.evidence as evidence
+        self.assertTrue(hasattr(evidence, "extract_evidence_features"))
