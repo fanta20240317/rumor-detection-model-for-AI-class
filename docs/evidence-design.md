@@ -14,3 +14,5 @@ Weighted rumor score and retrieval margin are converted into compact features fo
 Claim structure features capture URL, mention, hashtag, and punctuation patterns that often affect rumor risk.
 
 The structure module also captures uncertainty and source-word cues without introducing external facts.
+
+The lightweight structure risk score remains a bounded auxiliary signal, not a separate model family.
