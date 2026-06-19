@@ -1,0 +1,44 @@
+# some files which may be generated during process
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# virtual environments
+.venv/
+venv/
+env/
+
+# IDE&&OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# test cache
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# build
+build/
+dist/
+*.egg-info/
+
+# outputs
+outputs/
+logs/
+*.log
+
+# models
+models/*.pkl
+models/*.joblib
+models/*.pt
+models/*.bin
+
+# tmp
+tmp/
+temp/
+*.tmp
