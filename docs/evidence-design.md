@@ -24,3 +24,5 @@ Base probability remains the dominant signal while retrieval and structure act a
 Conservative fusion weights reduce the chance that sparse or weak evidence overwhelms the text classifier.
 
 The saved evidence_threshold is the label threshold used by evaluation and prediction.
+
+All fusion scores are aligned with 1 = rumor, so inal_prob always means P(rumor).
