@@ -4,3 +4,5 @@ Evidence-first prediction augments the base TF-IDF probability with retrieved ne
 The retrieval index is built from 	rain.csv so evaluation and prediction can cite comparable training claims without using validation labels as evidence.
 
 Retriever output keeps the top-k similar cases with item id, label, event, text, and similarity for downstream evidence features.
+
+Evidence features include retrieved rumor/non-rumor ratios so retrieved neighbors can influence the final probability directionally.
