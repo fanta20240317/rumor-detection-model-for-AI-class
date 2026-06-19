@@ -16,3 +16,5 @@ Claim structure features capture URL, mention, hashtag, and punctuation patterns
 The structure module also captures uncertainty and source-word cues without introducing external facts.
 
 The lightweight structure risk score remains a bounded auxiliary signal, not a separate model family.
+
+Fusion combines base model probability, retrieval evidence score, and structure score into a final evidence-aware P(rumor).
