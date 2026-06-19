@@ -32,3 +32,5 @@ RumorDetectionPipeline connects ensemble probabilities, retriever results, struc
 Each prediction returns structured evidence so downstream JSON and reports can be traced back to the same model run.
 
 Decision factors record the contribution of base, retrieval, and structure signals for explanation and debugging.
+
+Explanation is generated from the same evidence bundle used by the final prediction.
