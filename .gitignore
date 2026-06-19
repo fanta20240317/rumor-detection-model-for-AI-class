@@ -42,3 +42,9 @@ models/*.bin
 tmp/
 temp/
 *.tmp
+
+# some further files
+external_data/
+deep_learning_experiments/.venv/
+deep_learning_experiments/__pycache__/
+deep_learning_experiments/models/
