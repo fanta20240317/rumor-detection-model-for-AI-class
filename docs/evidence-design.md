@@ -34,3 +34,5 @@ Each prediction returns structured evidence so downstream JSON and reports can b
 Decision factors record the contribution of base, retrieval, and structure signals for explanation and debugging.
 
 Explanation is generated from the same evidence bundle used by the final prediction.
+
+Explanations are restricted to structured evidence, keyword contributions, and retrieved cases; no outside facts are introduced.
