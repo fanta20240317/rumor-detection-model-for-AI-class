@@ -12,3 +12,5 @@ Similarity statistics summarize the strength and consistency of the retrieved ev
 Weighted rumor score and retrieval margin are converted into compact features for evidence-aware fusion.
 
 Claim structure features capture URL, mention, hashtag, and punctuation patterns that often affect rumor risk.
+
+The structure module also captures uncertainty and source-word cues without introducing external facts.
