@@ -11,3 +11,7 @@ class DualTfidfEnsemble:
 
     def predict_label(self, text):
         return 1 if self.predict_probability(text) >= self.threshold else 0
+
+
+def default_tfidf_branch_names():
+    return ["char_no_meta", "unigram_bigram"]
