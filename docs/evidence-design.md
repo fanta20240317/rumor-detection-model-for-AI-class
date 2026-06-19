@@ -18,3 +18,5 @@ The structure module also captures uncertainty and source-word cues without intr
 The lightweight structure risk score remains a bounded auxiliary signal, not a separate model family.
 
 Fusion combines base model probability, retrieval evidence score, and structure score into a final evidence-aware P(rumor).
+
+Base probability remains the dominant signal while retrieval and structure act as calibrated supporting signals.
