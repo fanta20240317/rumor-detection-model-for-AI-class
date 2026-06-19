@@ -22,3 +22,5 @@ Fusion combines base model probability, retrieval evidence score, and structure 
 Base probability remains the dominant signal while retrieval and structure act as calibrated supporting signals.
 
 Conservative fusion weights reduce the chance that sparse or weak evidence overwhelms the text classifier.
+
+The saved evidence_threshold is the label threshold used by evaluation and prediction.
