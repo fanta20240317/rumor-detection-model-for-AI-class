@@ -16,3 +16,7 @@ class EvidenceFeatureContractTests(unittest.TestCase):
     def test_evidence_module_imports(self):
         import src.evidence as evidence
         self.assertTrue(hasattr(evidence, "extract_evidence_features"))
+class ClaimStructureContractTests(unittest.TestCase):
+    def test_claim_structure_module_imports(self):
+        import src.claim_structure as claim_structure
+        self.assertTrue(hasattr(claim_structure, "extract_claim_structure_features"))
