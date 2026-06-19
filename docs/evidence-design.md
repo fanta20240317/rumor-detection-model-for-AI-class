@@ -20,3 +20,5 @@ The lightweight structure risk score remains a bounded auxiliary signal, not a s
 Fusion combines base model probability, retrieval evidence score, and structure score into a final evidence-aware P(rumor).
 
 Base probability remains the dominant signal while retrieval and structure act as calibrated supporting signals.
+
+Conservative fusion weights reduce the chance that sparse or weak evidence overwhelms the text classifier.
