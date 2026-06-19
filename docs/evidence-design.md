@@ -6,3 +6,5 @@ The retrieval index is built from 	rain.csv so evaluation and prediction can cit
 Retriever output keeps the top-k similar cases with item id, label, event, text, and similarity for downstream evidence features.
 
 Evidence features include retrieved rumor/non-rumor ratios so retrieved neighbors can influence the final probability directionally.
+
+Similarity statistics summarize the strength and consistency of the retrieved evidence set.
