@@ -12,3 +12,7 @@ class FusionContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+class PipelineContractTests(unittest.TestCase):
+    def test_pipeline_module_imports(self):
+        import src.evidence_pipeline as evidence_pipeline
+        self.assertTrue(hasattr(evidence_pipeline, "RumorDetectionPipeline"))
