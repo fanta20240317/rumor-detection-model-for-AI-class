@@ -36,3 +36,5 @@ Decision factors record the contribution of base, retrieval, and structure signa
 Explanation is generated from the same evidence bundle used by the final prediction.
 
 Explanations are restricted to structured evidence, keyword contributions, and retrieved cases; no outside facts are introduced.
+
+Keyword summaries help reviewers inspect which normalized text features supported the base classifier branch.
