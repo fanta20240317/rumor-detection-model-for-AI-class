@@ -10,3 +10,5 @@ Evidence features include retrieved rumor/non-rumor ratios so retrieved neighbor
 Similarity statistics summarize the strength and consistency of the retrieved evidence set.
 
 Weighted rumor score and retrieval margin are converted into compact features for evidence-aware fusion.
+
+Claim structure features capture URL, mention, hashtag, and punctuation patterns that often affect rumor risk.
