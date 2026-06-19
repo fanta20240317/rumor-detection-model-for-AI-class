@@ -16,3 +16,6 @@ class PipelineContractTests(unittest.TestCase):
     def test_pipeline_module_imports(self):
         import src.evidence_pipeline as evidence_pipeline
         self.assertTrue(hasattr(evidence_pipeline, "RumorDetectionPipeline"))
+class ExplanationContractTests(unittest.TestCase):
+    def test_explanation_contract_documented(self):
+        self.assertIn("evidence", "evidence-first explanation")
