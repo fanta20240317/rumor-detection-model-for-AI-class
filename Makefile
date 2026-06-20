@@ -1,4 +1,4 @@
-.PHONY: install train evaluate evaluation predict test clean
+.PHONY: install train evaluate evaluation predict web test clean
 
 PYTHON ?= python
 MODEL ?= models/main_fusion.pkl
@@ -19,6 +19,9 @@ evaluation: evaluate
 
 predict:
 	$(PYTHON) predict.py --model $(MODEL) --train $(TRAIN) --text "$(TEXT)"
+
+web:
+	$(PYTHON) web_app.py --model $(MODEL) --train $(TRAIN)
 
 test:
 	$(PYTHON) -m unittest discover -s tests

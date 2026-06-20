@@ -1,16 +1,25 @@
 import csv
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from evaluate import evaluate_rows
 from src.defense import sanitize_text
 from src.ensemble_model import EnsembleRumorModel
 from src.evidence import build_retrieval_evidence_features
 from src.evidence_pipeline import RumorDetectionPipeline
+from src.llm_explainer import (
+    SchoolLLMExplainer,
+    build_chat_completions_url,
+    build_explanation_prompt,
+    extract_chat_content,
+)
+from src.prediction_service import RumorPredictionService
 from src.retriever import TfidfEvidenceRetriever
 from src.text_model import find_best_threshold, read_csv, stratified_train_dev_split
 
@@ -70,6 +79,47 @@ def tiny_rows():
                 }
             )
     return rows
+
+
+class FakeHttpResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+
+class FakeLLMExplainer:
+    model = "fake-school-model"
+
+    def status(self):
+        return {
+            "configured": True,
+            "api_url": "https://api.school.edu/v1/chat/completions",
+            "model": self.model,
+            "has_api_key": True,
+        }
+
+    def explain(self, prediction):
+        return f"LLM evidence for {prediction['label_name']}"
+
+
+def without_llm_env():
+    env = os.environ.copy()
+    for key in [
+        "SCHOOL_LLM_API_KEY",
+        "SCHOOL_LLM_API_URL",
+        "SCHOOL_LLM_BASE_URL",
+        "SCHOOL_LLM_MODEL",
+    ]:
+        env.pop(key, None)
+    return env
 
 
 class FinalPipelineTests(unittest.TestCase):
@@ -205,6 +255,112 @@ class FinalPipelineTests(unittest.TestCase):
         self.assertTrue(guard["applied"])
         self.assertEqual(guard["applied_rules"][0]["name"], "rumor_retrieval_rescue")
 
+    def test_llm_url_builder_uses_chat_completions_endpoint(self):
+        self.assertEqual(
+            build_chat_completions_url("https://api.school.edu/v1"),
+            "https://api.school.edu/v1/chat/completions",
+        )
+        self.assertEqual(
+            build_chat_completions_url(
+                "https://api.school.edu/v1/chat/completions"
+            ),
+            "https://api.school.edu/v1/chat/completions",
+        )
+
+    def test_llm_response_parser_extracts_message_content(self):
+        content = extract_chat_content(
+            {"choices": [{"message": {"content": "这是大模型解释"}}]}
+        )
+
+        self.assertEqual(content, "这是大模型解释")
+
+    def test_school_llm_explainer_calls_chat_api(self):
+        explainer = SchoolLLMExplainer(
+            api_key="test-key",
+            api_url="https://api.school.edu/v1/chat/completions",
+            model="school-model",
+        )
+        prediction = {
+            "label_name": "non-rumor",
+            "prob_rumor": 0.2,
+            "confidence": 0.8,
+            "threshold": 0.5,
+            "evidence": {},
+        }
+
+        with patch(
+            "urllib.request.urlopen",
+            return_value=FakeHttpResponse(
+                {"choices": [{"message": {"content": "这是学校大模型解释"}}]}
+            ),
+        ) as mocked_urlopen:
+            explanation = explainer.explain(prediction)
+
+        request = mocked_urlopen.call_args[0][0]
+        self.assertEqual(explanation, "这是学校大模型解释")
+        self.assertEqual(request.full_url, "https://api.school.edu/v1/chat/completions")
+
+    def test_prediction_service_adds_llm_evidence_by_default(self):
+        ensemble = EnsembleRumorModel(
+            models=[ConstantModel(0.7), ConstantModel(0.7)],
+            model_names=["left", "right"],
+            threshold=0.5,
+        )
+        service = RumorPredictionService(llm_explainer=FakeLLMExplainer())
+        service._pipeline = RumorDetectionPipeline(ensemble)
+
+        result = service.predict("sample text")
+
+        self.assertIn("evidence", result)
+        self.assertIn("llm_evidence", result)
+        self.assertTrue(result["llm_evidence"]["available"])
+        self.assertEqual(
+            result["llm_evidence"]["explanation"],
+            "LLM evidence for rumor",
+        )
+
+    def test_llm_prompt_keeps_final_model_decision(self):
+        prediction = {
+            "input_text": "sample claim raw tweet",
+            "label_name": "rumor",
+            "prob_rumor": 0.72,
+            "confidence": 0.72,
+            "threshold": 0.5,
+            "explanation": "base explanation",
+            "evidence": {
+                "normalized_text": "sample claim",
+                "baseline": {
+                    "label_name": "rumor",
+                    "prob_rumor": 0.7,
+                    "threshold": 0.5,
+                },
+                "retrieval_statistics": {
+                    "retrieved_count": 2,
+                    "retrieved_rumor_ratio": 1.0,
+                    "retrieved_nonrumor_ratio": 0.0,
+                    "max_similarity": 0.3,
+                    "weighted_rumor_score": 1.0,
+                    "retrieval_confidence": 0.8,
+                },
+                "decision_factors": [],
+                "keyword_contributions": [{"term": "breaking"}],
+                "claim_structure_features": {"signals": ["hashtag_count=1"]},
+                "probability_guard": {"applied": False},
+                "retrieved_cases": [
+                    {"label": 1, "score": 0.3, "text": "similar rumor"}
+                ],
+            },
+        }
+
+        prompt = build_explanation_prompt(prediction)
+
+        self.assertIn('"label_name": "rumor"', prompt)
+        self.assertIn('"original_tweet": "sample claim raw tweet"', prompt)
+        self.assertIn('"model_evidence_terms"', prompt)
+        self.assertIn('"rag_similar_samples"', prompt)
+        self.assertIn("不能修改模型给出的最终结论", prompt)
+        self.assertIn("breaking", prompt)
+
     def test_f1_recall_threshold_objective_prefers_recall_near_ties(self):
         labels = [1, 1, 1, 0, 0]
         probs = [0.49, 0.51, 0.70, 0.50, 0.10]
@@ -337,6 +493,7 @@ class FinalPipelineTests(unittest.TestCase):
                 ],
                 check=True,
                 capture_output=True,
+                env=without_llm_env(),
                 text=True,
             )
 
@@ -347,6 +504,9 @@ class FinalPipelineTests(unittest.TestCase):
             self.assertTrue((out_dir / "evaluation.json").exists())
             self.assertIn(payload["label"], (0, 1))
             self.assertIn("evidence", payload)
+            self.assertIn("llm_evidence", payload)
+            self.assertTrue(payload["llm_evidence"]["enabled"])
+            self.assertFalse(payload["llm_evidence"]["available"])
             metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
             self.assertEqual(
                 metrics_payload["threshold_objective"],

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>谣言检测 Web</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div>
+          <h1>谣言检测</h1>
+          <p>输入一段短文本，查看模型判断、置信度和证据解释。</p>
+        </div>
+        <div class="status-pill" id="modelStatus">正在检查模型</div>
+      </header>
+
+      <section class="workspace">
+        <section class="panel input-panel" aria-labelledby="inputTitle">
+          <div class="panel-heading">
+            <h2 id="inputTitle">输入样本</h2>
+            <button class="ghost-button" id="clearButton" type="button">清空</button>
+          </div>
+
+          <label class="field-label" for="sampleText">待检测文本</label>
+          <textarea
+            id="sampleText"
+            spellcheck="false"
+            placeholder="例如：Swiss museum confirms it will take on #Gurlitt collection"
+          ></textarea>
+
+          <div class="controls-row">
+            <label class="compact-field" for="topK">
+              相似案例
+              <select id="topK">
+                <option value="">使用模型默认值</option>
+                <option value="3">Top 3</option>
+                <option value="5">Top 5</option>
+                <option value="8">Top 8</option>
+                <option value="10">Top 10</option>
+              </select>
+            </label>
+            <label class="toggle-field" for="useLlm">
+              <input id="useLlm" type="checkbox" checked />
+              <span>大模型解释</span>
+            </label>
+            <button class="primary-button" id="predictButton" type="button">
+              开始判断
+            </button>
+          </div>
+
+          <div class="sample-row" aria-label="示例文本">
+            <button class="sample-button" type="button" data-sample="Swiss museum confirms it will take on #Gurlitt collection">
+              Gurlitt 示例
+            </button>
+            <button class="sample-button" type="button" data-sample="BREAKING: #Ferguson police chief just announced that officer Darren Wilson shot the unarmed teen, Michael Brown.">
+              Ferguson 示例
+            </button>
+            <button class="sample-button" type="button" data-sample="Official source confirms the museum will publish a full statement later today.">
+              官方确认示例
+            </button>
+          </div>
+
+          <p class="form-message" id="formMessage" role="status"></p>
+        </section>
+
+        <section class="panel result-panel" aria-labelledby="resultTitle">
+          <div class="panel-heading">
+            <h2 id="resultTitle">判断结果</h2>
+            <span class="muted" id="thresholdText">等待输入</span>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            结果会显示在这里，包括最终标签、谣言概率、关键词、相似案例和模型解释。
+          </div>
+
+          <div class="result-content hidden" id="resultContent">
+            <div class="decision-strip">
+              <div class="decision-main">
+                <span class="label-badge" id="labelBadge">--</span>
+                <strong id="confidenceText">--</strong>
+                <span class="muted">置信度</span>
+              </div>
+              <div class="probability-block">
+                <div class="metric-line">
+                  <span>谣言概率</span>
+                  <strong id="probabilityText">--</strong>
+                </div>
+                <div class="probability-track">
+                  <span class="probability-fill" id="probabilityFill"></span>
+                </div>
+              </div>
+            </div>
+
+            <section class="explanation-block">
+              <h3>解释</h3>
+              <p id="explanationText"></p>
+            </section>
+
+            <section class="llm-block hidden" id="llmBlock">
+              <h3>LLM 证据解释</h3>
+              <p id="llmExplanationText"></p>
+            </section>
+
+            <section class="detail-grid">
+              <div>
+                <h3>融合信号</h3>
+                <div class="factor-list" id="factorList"></div>
+              </div>
+              <div>
+                <h3>基线对比</h3>
+                <dl class="baseline-list" id="baselineList"></dl>
+              </div>
+            </section>
+
+            <section>
+              <h3>关键词证据</h3>
+              <div class="chip-list" id="keywordList"></div>
+            </section>
+
+            <section>
+              <h3>结构信号</h3>
+              <div class="chip-list" id="structureList"></div>
+            </section>
+
+            <section>
+              <h3>概率保护规则</h3>
+              <p class="guard-text" id="guardText"></p>
+            </section>
+
+            <section>
+              <h3>相似训练案例</h3>
+              <div class="case-list" id="caseList"></div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

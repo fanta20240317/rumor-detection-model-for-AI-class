@@ -5,6 +5,10 @@ Metrics use the saved evidence_threshold, matching the labels exported in predic
 
 Evaluation exports aggregate metrics, per-event metrics, predictions, and case explanations under outputs/.
 
+Evaluation does not call the school LLM. LLM evidence is generated only by
+terminal or web prediction after the local model has produced its result, so
+validation metrics remain deterministic and independent of external API state.
+
 Reported metrics are validation performance on val.csv; the project has no independent test.csv.
 
 Final tests are consolidated in tests/test_project.py so command and pipeline contracts are checked in one place.
