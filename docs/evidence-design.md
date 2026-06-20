@@ -2,6 +2,8 @@
 
 Evaluation loads the saved evidence-aware pipeline, scores `val.csv`, and reports validation metrics. `val.csv` is not described as an independent test set.
 
+Metrics use the saved evidence_threshold, matching the labels exported in prediction rows.
+
 Evidence-first prediction augments the base TF-IDF probability with retrieved neighbors and lightweight claim-structure features. All feature directions are aligned so higher scores indicate stronger support for `P(rumor)`.
 The retrieval index is built from 	rain.csv so evaluation and prediction can cite comparable training claims without using validation labels as evidence.
 
