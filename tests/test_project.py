@@ -140,6 +140,71 @@ class FinalPipelineTests(unittest.TestCase):
         self.assertEqual(result["threshold"], 0.6)
         self.assertIn("Final decision", result["explanation"])
 
+    def test_probability_guard_adjusts_high_confidence_nonrumor_retrieval(self):
+        ensemble = EnsembleRumorModel(
+            models=[ConstantModel(0.55), ConstantModel(0.55)],
+            model_names=["left", "right"],
+            threshold=0.5,
+        )
+        ensemble.probability_guard = {
+            "type": "nonrumor_retrieval_guard",
+            "min_similarity": 0.3,
+            "max_weighted_rumor_score": 0.4,
+            "min_confidence": 0.25,
+            "delta": 0.1,
+        }
+        pipeline = RumorDetectionPipeline(ensemble)
+
+        adjusted, guard = pipeline._apply_probability_guard(
+            0.55,
+            {
+                "max_similarity": 0.35,
+                "weighted_rumor_score": 0.2,
+                "retrieval_confidence": 0.5,
+            },
+        )
+
+        self.assertAlmostEqual(adjusted, 0.45)
+        self.assertTrue(guard["applied"])
+
+    def test_accuracy_guard_can_rescue_retrieval_supported_rumors(self):
+        ensemble = EnsembleRumorModel(
+            models=[ConstantModel(0.4), ConstantModel(0.4)],
+            model_names=["left", "right"],
+            threshold=0.5,
+        )
+        ensemble.probability_guard = {
+            "type": "retrieval_accuracy_guard",
+            "nonrumor_guard": {
+                "min_similarity": 0.3,
+                "max_weighted_rumor_score": 0.4,
+                "min_confidence": 0.25,
+                "delta": 0.1,
+            },
+            "rumor_rescue_guard": {
+                "min_weighted_rumor_score": 0.55,
+                "min_similarity": 0.18,
+                "min_confidence": 0.0,
+                "min_prob": 0.0,
+                "max_prob": 0.45,
+                "delta": 0.09,
+            },
+        }
+        pipeline = RumorDetectionPipeline(ensemble)
+
+        adjusted, guard = pipeline._apply_probability_guard(
+            0.4,
+            {
+                "max_similarity": 0.2,
+                "weighted_rumor_score": 0.7,
+                "retrieval_confidence": 0.3,
+            },
+        )
+
+        self.assertAlmostEqual(adjusted, 0.49)
+        self.assertTrue(guard["applied"])
+        self.assertEqual(guard["applied_rules"][0]["name"], "rumor_retrieval_rescue")
+
     def test_f1_recall_threshold_objective_prefers_recall_near_ties(self):
         labels = [1, 1, 1, 0, 0]
         probs = [0.49, 0.51, 0.70, 0.50, 0.10]
@@ -283,7 +348,13 @@ class FinalPipelineTests(unittest.TestCase):
             self.assertIn(payload["label"], (0, 1))
             self.assertIn("evidence", payload)
             metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
-            self.assertEqual(metrics_payload["threshold_objective"], "f1_recall")
+            self.assertEqual(
+                metrics_payload["threshold_objective"],
+                "precision_calibrated_accuracy",
+            )
+            self.assertEqual(metrics_payload["pipeline"], "accuracy_rescue_fusion")
+            self.assertIn("threshold_calibration", metrics_payload)
+            self.assertIn("probability_guard", metrics_payload)
             self.assertIn("validation_size", metrics_payload)
             self.assertNotIn("test_size", metrics_payload)
 

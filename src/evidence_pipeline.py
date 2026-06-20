@@ -100,7 +100,10 @@ class RumorDetectionPipeline:
             structure_features,
         )
 
-        final_prob = fusion["final_prob"]
+        final_prob, probability_guard = self._apply_probability_guard(
+            fusion["final_prob"],
+            retrieval_evidence["retrieval_statistics"],
+        )
         label = int(final_prob >= threshold)
         confidence = final_prob if label == 1 else 1.0 - final_prob
         label_name = label_to_name(label)
@@ -112,6 +115,7 @@ class RumorDetectionPipeline:
             "retrieval_statistics": retrieval_evidence["retrieval_statistics"],
             "claim_structure_features": structure_features,
             "decision_factors": fusion["decision_factors"],
+            "probability_guard": probability_guard,
             "baseline": {
                 "label": int(base_prob >= base_threshold),
                 "label_name": label_to_name(int(base_prob >= base_threshold)),
@@ -193,6 +197,142 @@ class RumorDetectionPipeline:
             ],
         }
 
+    def _apply_probability_guard(self, prob, retrieval_stats):
+        guard = getattr(self.ensemble, "probability_guard", None)
+        if not guard:
+            return prob, {"applied": False}
+        if guard.get("type") == "retrieval_accuracy_guard":
+            return self._apply_retrieval_accuracy_guard(prob, retrieval_stats, guard)
+        if guard.get("type") != "nonrumor_retrieval_guard":
+            return prob, {"applied": False, "reason": "unknown_guard_type"}
+
+        return self._apply_nonrumor_retrieval_guard(prob, retrieval_stats, guard)
+
+    def _apply_nonrumor_retrieval_guard(self, prob, retrieval_stats, guard):
+        min_similarity = float(guard.get("min_similarity", 1.0))
+        max_rumor_score = float(guard.get("max_weighted_rumor_score", 0.0))
+        min_confidence = float(guard.get("min_confidence", 0.0))
+        delta = float(guard.get("delta", 0.0))
+
+        max_similarity = retrieval_stats.get("max_similarity", 0.0)
+        weighted_rumor_score = retrieval_stats.get("weighted_rumor_score", 0.5)
+        retrieval_confidence = retrieval_stats.get("retrieval_confidence", 0.0)
+        applied = (
+            max_similarity >= min_similarity
+            and weighted_rumor_score <= max_rumor_score
+            and retrieval_confidence >= min_confidence
+            and delta > 0.0
+        )
+        if not applied:
+            return prob, {
+                "applied": False,
+                "type": guard.get("type"),
+                "thresholds": {
+                    "min_similarity": min_similarity,
+                    "max_weighted_rumor_score": max_rumor_score,
+                    "min_confidence": min_confidence,
+                    "delta": delta,
+                },
+            }
+
+        adjusted_prob = max(0.0, prob - delta)
+        return adjusted_prob, {
+            "applied": True,
+            "type": guard.get("type"),
+            "prob_before": prob,
+            "prob_after": adjusted_prob,
+            "delta": delta,
+            "reason": "high-confidence retrieval support for non-rumor",
+            "retrieval_snapshot": {
+                "max_similarity": max_similarity,
+                "weighted_rumor_score": weighted_rumor_score,
+                "retrieval_confidence": retrieval_confidence,
+            },
+        }
+
+    def _apply_retrieval_accuracy_guard(self, prob, retrieval_stats, guard):
+        original_prob = prob
+        applied_rules = []
+
+        nonrumor_guard = guard.get("nonrumor_guard")
+        if nonrumor_guard:
+            adjusted_prob, nonrumor_result = self._apply_nonrumor_retrieval_guard(
+                prob,
+                retrieval_stats,
+                nonrumor_guard,
+            )
+            if nonrumor_result.get("applied"):
+                applied_rules.append(
+                    {
+                        "name": "nonrumor_retrieval_guard",
+                        "delta": -nonrumor_result["delta"],
+                        "prob_before": prob,
+                        "prob_after": adjusted_prob,
+                    }
+                )
+                prob = adjusted_prob
+
+        rescue_guard = guard.get("rumor_rescue_guard")
+        if rescue_guard and self._should_apply_rumor_rescue(
+            prob,
+            retrieval_stats,
+            rescue_guard,
+        ):
+            delta = float(rescue_guard.get("delta", 0.0))
+            adjusted_prob = min(1.0, prob + delta)
+            applied_rules.append(
+                {
+                    "name": "rumor_retrieval_rescue",
+                    "delta": delta,
+                    "prob_before": prob,
+                    "prob_after": adjusted_prob,
+                }
+            )
+            prob = adjusted_prob
+
+        if not applied_rules:
+            return prob, {
+                "applied": False,
+                "type": guard.get("type"),
+                "rules": {
+                    "nonrumor_guard": nonrumor_guard,
+                    "rumor_rescue_guard": rescue_guard,
+                },
+            }
+
+        return prob, {
+            "applied": True,
+            "type": guard.get("type"),
+            "prob_before": original_prob,
+            "prob_after": prob,
+            "applied_rules": applied_rules,
+            "reason": "retrieval evidence adjusted the final probability",
+            "retrieval_snapshot": {
+                "max_similarity": retrieval_stats.get("max_similarity", 0.0),
+                "weighted_rumor_score": retrieval_stats.get(
+                    "weighted_rumor_score",
+                    0.5,
+                ),
+                "retrieval_confidence": retrieval_stats.get(
+                    "retrieval_confidence",
+                    0.0,
+                ),
+            },
+        }
+
+    def _should_apply_rumor_rescue(self, prob, retrieval_stats, guard):
+        return (
+            prob >= float(guard.get("min_prob", 0.0))
+            and prob < float(guard.get("max_prob", 1.0))
+            and retrieval_stats.get("weighted_rumor_score", 0.5)
+            >= float(guard.get("min_weighted_rumor_score", 1.0))
+            and retrieval_stats.get("max_similarity", 0.0)
+            >= float(guard.get("min_similarity", 1.0))
+            and retrieval_stats.get("retrieval_confidence", 0.0)
+            >= float(guard.get("min_confidence", 0.0))
+            and float(guard.get("delta", 0.0)) > 0.0
+        )
+
 
 def label_to_name(label):
     return "rumor" if int(label) == 1 else "non-rumor"
@@ -234,5 +374,21 @@ def build_evidence_first_explanation(result):
         pieces.append(
             f"Claim-structure signals: {', '.join(structure['signals'][:4])}. "
         )
+
+    guard = evidence.get("probability_guard", {})
+    if guard.get("applied"):
+        rules = [item["name"] for item in guard.get("applied_rules", [])]
+        if "rumor_retrieval_rescue" in rules:
+            pieces.append(
+                "Retrieval evidence rescued a borderline rumor case, moving "
+                f"the rumor probability from {guard['prob_before']:.2f} to "
+                f"{guard['prob_after']:.2f}. "
+            )
+        else:
+            pieces.append(
+                "A high-confidence non-rumor retrieval guard lowered the final "
+                f"rumor probability from {guard['prob_before']:.2f} to "
+                f"{guard['prob_after']:.2f}. "
+            )
 
     return "".join(pieces)

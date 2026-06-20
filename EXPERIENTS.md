@@ -14,6 +14,7 @@ normalized text
 -> top-k retrieval evidence from the training set
 -> claim-structure features
 -> tuned evidence-aware fusion
+-> retrieval accuracy guard
 -> final thresholded label and explanation
 ```
 
@@ -25,21 +26,24 @@ The saved model artifact contains:
 - evidence fusion weights;
 - evidence top-k;
 - retrieval similarity gate;
-- evidence-aware threshold.
+- evidence-aware threshold;
+- retrieval accuracy guard settings.
 
 Evaluation and prediction both use the same `RumorDetectionPipeline` and the
 same saved evidence-aware threshold.
 Evidence fusion weights are tuned, so a retrieval or structure stream can have
 weight `0.0` when the internal dev split does not benefit from it; the emitted
 `evidence.decision_factors` show the effective weights used for each prediction.
+The saved retrieval accuracy guard can lower high-confidence non-rumor cases or
+rescue borderline rumor cases before thresholding.
 
 ## Reproduction
 
 ```bash
 python -m pip install -r requirements.txt
-python train.py --train train.csv --val val.csv --model models/ensemble.pkl --metrics outputs/metrics.json
-python evaluate.py --model models/ensemble.pkl --data val.csv --train train.csv --out-dir outputs
-python predict.py --model models/ensemble.pkl --train train.csv --text "Swiss museum confirms it will take on #Gurlitt collection"
+python train.py --train train.csv --val val.csv --model models/main_fusion.pkl --metrics outputs/metrics.json
+python evaluate.py --model models/main_fusion.pkl --data val.csv --train train.csv --out-dir outputs
+python predict.py --model models/main_fusion.pkl --train train.csv --text "Swiss museum confirms it will take on #Gurlitt collection"
 python -m unittest discover -s tests
 ```
 
@@ -66,7 +70,10 @@ make test
 The internal dev evidence retriever is built only from the fit split, so dev
 samples do not enter their own evidence corpus during tuning. The final
 evaluation and prediction commands use `train.csv` as the evidence corpus,
-which matches deployment behavior.
+which matches deployment behavior. After internal selection, the final selected
+TF-IDF branches are refit on the full `train.csv`.
+The retrieval accuracy guard settings are fixed in the final pipeline and saved
+inside the model artifact.
 
 ## Metrics
 
@@ -94,6 +101,8 @@ Prediction JSON includes both final and baseline fields:
 - `evidence.claim_structure_features`: lightweight structure signals;
 - `evidence.decision_factors`: effective fusion factors used for the final
   probability;
+- `evidence.probability_guard`: whether the retrieval accuracy guard adjusted
+  the final probability;
 - `explanation`: text generated from the same evidence used by the final
   decision.
 

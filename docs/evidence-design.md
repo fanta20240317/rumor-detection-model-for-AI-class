@@ -1,7 +1,7 @@
 # Evidence Pipeline Design
 
 Evidence-first prediction augments the base TF-IDF probability with retrieved neighbors and lightweight claim-structure features. All feature directions are aligned so higher scores indicate stronger support for `P(rumor)`.
-The retrieval index is built from 	rain.csv so evaluation and prediction can cite comparable training claims without using validation labels as evidence.
+The retrieval index is built from train.csv so evaluation and prediction can cite comparable training claims without using validation labels as evidence.
 
 Retriever output keeps the top-k similar cases with item id, label, event, text, and similarity for downstream evidence features.
 
@@ -25,13 +25,21 @@ Conservative fusion weights reduce the chance that sparse or weak evidence overw
 
 The saved evidence_threshold is the label threshold used by evaluation and prediction.
 
-All fusion scores are aligned with 1 = rumor, so inal_prob always means P(rumor).
+All fusion scores are aligned with 1 = rumor, so final_prob always means P(rumor).
+
+After fusion, the retrieval accuracy guard can adjust final_prob before
+thresholding. The non-rumor guard lowers probabilities when retrieved cases
+strongly support non-rumor; the rumor rescue guard slightly raises borderline
+cases when retrieved evidence strongly supports rumor.
 
 RumorDetectionPipeline connects ensemble probabilities, retriever results, structure features, fusion, and explanation fields in one prediction path.
 
 Each prediction returns structured evidence so downstream JSON and reports can be traced back to the same model run.
 
 Decision factors record the contribution of base, retrieval, and structure signals for explanation and debugging.
+
+Probability guard output records whether a retrieval-based adjustment was
+applied, including the probability before and after adjustment.
 
 Explanation is generated from the same evidence bundle used by the final prediction.
 

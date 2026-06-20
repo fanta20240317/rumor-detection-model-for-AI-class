@@ -92,7 +92,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Evaluate the final evidence-aware rumor detection pipeline."
     )
-    parser.add_argument("--model", default="models/ensemble.pkl")
+    parser.add_argument("--model", default="models/main_fusion.pkl")
     parser.add_argument("--data", default="val.csv")
     parser.add_argument("--train", default="train.csv")
     parser.add_argument("--out-dir", default="outputs")

@@ -26,7 +26,7 @@ Mengxi Zhang:
 - tests
 - Makefile
 - `README.md`
-- `EXPERIMENTS.md`
+- `EXPERIENTS.md`
 
 ## Experiments to Rerun in the Formal Repository
 
