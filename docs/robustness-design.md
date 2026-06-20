@@ -14,3 +14,5 @@ Recommended robustness reporting: clean accuracy, attacked accuracy, accuracy dr
 Use a small --limit style option if a formal adversarial evaluation script is added during reimplementation for quick checks.
 
 Robustness usage is documented as a reimplementation expectation rather than a fabricated completed experiment.
+
+The formal repository should rerun ablation and robustness checks and record fresh results from that run.

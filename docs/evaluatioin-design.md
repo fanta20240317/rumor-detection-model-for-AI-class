@@ -5,6 +5,8 @@ Metrics use the saved evidence_threshold, matching the labels exported in predic
 
 Evaluation exports aggregate metrics, per-event metrics, predictions, and case explanations under outputs/.
 
-Reported metrics are validation performance on al.csv; the project has no independent 	est.csv.
+Reported metrics are validation performance on val.csv; the project has no independent test.csv.
 
-Final tests are consolidated in 	ests/test_project.py so command and pipeline contracts are checked in one place.
+Final tests are consolidated in tests/test_project.py so command and pipeline contracts are checked in one place.
+
+README and EXPERIMENTS must describe val.csv as validation data only; no independent test accuracy is claimed.
