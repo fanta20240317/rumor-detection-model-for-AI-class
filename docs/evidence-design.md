@@ -32,7 +32,11 @@ thresholding. The non-rumor guard lowers probabilities when retrieved cases
 strongly support non-rumor; the rumor rescue guard slightly raises borderline
 cases when retrieved evidence strongly supports rumor.
 
-RumorDetectionPipeline connects ensemble probabilities, retriever results, structure features, fusion, and explanation fields in one prediction path.
+RumorDetectionPipeline connects ensemble probabilities, retriever results, structure features, fusion, and local explanation fields in one prediction path.
+
+RumorPredictionService wraps the pipeline for terminal and web prediction. It
+adds `llm_evidence` after the local decision, so LLM output is explanation
+evidence only and never changes `prob_rumor`, thresholding, or the final label.
 
 Each prediction returns structured evidence so downstream JSON and reports can be traced back to the same model run.
 
@@ -41,9 +45,11 @@ Decision factors record the contribution of base, retrieval, and structure signa
 Probability guard output records whether a retrieval-based adjustment was
 applied, including the probability before and after adjustment.
 
-Explanation is generated from the same evidence bundle used by the final prediction.
+Local explanation is generated from the same evidence bundle used by the final prediction.
 
-Explanations are restricted to structured evidence, keyword contributions, and retrieved cases; no outside facts are introduced.
+LLM explanation prompts are also restricted to structured evidence, keyword
+contributions, retrieved cases, and the local model decision; no outside facts
+should be introduced.
 
 Keyword summaries help reviewers inspect which normalized text features supported the base classifier branch.
 

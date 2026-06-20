@@ -17,10 +17,14 @@ Zihan Li:
 - evidence-aware fusion
 - `RumorDetectionPipeline`
 - evidence-first explanation
+- school-LLM explanation prompt constraints
 
 Mengxi Zhang:
 - `evaluate.py`
 - `predict.py`
+- `web_app.py`
+- web UI
+- shared `RumorPredictionService`
 - adversarial/suspicious input checks
 - adversarial stability evaluation plan
 - tests
@@ -32,7 +36,8 @@ Mengxi Zhang:
 
 - Default training on `train.csv`.
 - Validation reporting on `val.csv`.
-- Single-text evidence-aware prediction.
+- Single-text evidence-aware prediction with model evidence and LLM evidence.
+- Web prediction with the same output contract as `predict.py`.
 - Threshold and fusion metadata verification.
 - Robustness checks for suspicious or perturbed input.
 - Any ablation or extended data experiments the team chooses to report.

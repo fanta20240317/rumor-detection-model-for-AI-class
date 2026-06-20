@@ -1,8 +1,10 @@
 # Experiments
 
 This file documents the retained final experiment protocol. Historical
-lightweight, transformer-fusion, adversarial, ablation, and web-demo workflows
-were removed from the main project to keep one reproducible pipeline.
+lightweight, transformer-fusion, adversarial, and ablation workflows were
+removed from the main project to keep one reproducible pipeline. The current
+web UI is an interface for the retained final prediction service, not a
+separate experimental model.
 
 ## Final Pipeline
 
@@ -15,7 +17,8 @@ normalized text
 -> claim-structure features
 -> tuned evidence-aware fusion
 -> retrieval accuracy guard
--> final thresholded label and explanation
+-> final thresholded label and local evidence explanation
+-> optional school-LLM evidence explanation
 ```
 
 The saved model artifact contains:
@@ -29,13 +32,16 @@ The saved model artifact contains:
 - evidence-aware threshold;
 - retrieval accuracy guard settings.
 
-Evaluation and prediction both use the same `RumorDetectionPipeline` and the
-same saved evidence-aware threshold.
+Evaluation uses the saved `RumorDetectionPipeline` and evidence-aware
+threshold. Terminal and web prediction use `RumorPredictionService`, which wraps
+the same pipeline and can attach school-LLM evidence after the local decision.
 Evidence fusion weights are tuned, so a retrieval or structure stream can have
 weight `0.0` when the internal dev split does not benefit from it; the emitted
 `evidence.decision_factors` show the effective weights used for each prediction.
 The saved retrieval accuracy guard can lower high-confidence non-rumor cases or
 rescue borderline rumor cases before thresholding.
+LLM evidence is not used for training, thresholding, or metrics; it only
+rewrites the already emitted model evidence into a Chinese explanation.
 
 ## Reproduction
 
@@ -44,6 +50,7 @@ python -m pip install -r requirements.txt
 python train.py --train train.csv --val val.csv --model models/main_fusion.pkl --metrics outputs/metrics.json
 python evaluate.py --model models/main_fusion.pkl --data val.csv --train train.csv --out-dir outputs
 python predict.py --model models/main_fusion.pkl --train train.csv --text "Swiss museum confirms it will take on #Gurlitt collection"
+python web_app.py --model models/main_fusion.pkl --train train.csv
 python -m unittest discover -s tests
 ```
 
@@ -54,8 +61,14 @@ make install
 make train
 make evaluate
 make predict TEXT="Swiss museum confirms it will take on #Gurlitt collection"
+make web
 make test
 ```
+
+Prediction attempts to include `llm_evidence` by default. Configure the school
+API with `SCHOOL_LLM_API_KEY`, `SCHOOL_LLM_BASE_URL` or `SCHOOL_LLM_API_URL`,
+and `SCHOOL_LLM_MODEL`. Use `python predict.py --no-llm ...` to disable LLM
+evidence for a single terminal run.
 
 ## Data Split Protocol
 
@@ -105,6 +118,8 @@ Prediction JSON includes both final and baseline fields:
   the final probability;
 - `explanation`: text generated from the same evidence used by the final
   decision.
+- `llm_evidence`: school-LLM explanation generated from the final model output
+  and evidence, or an unavailable status if the API is not configured.
 
-This keeps evaluation, prediction, and explanation aligned to the same final
-pipeline.
+This keeps evaluation, prediction, local explanation, and LLM explanation
+aligned to the same final model evidence.

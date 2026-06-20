@@ -6,6 +6,8 @@
 
 最终模型还会保存 retrieval accuracy guard，用于在预测时根据高置信检索证据调整边界样本概率。
 
+学校大模型解释属于预测后的解释层，不参与训练、内部开发集调参、阈值选择或验证指标计算。
+
 Default training entry: python train.py --train train.csv --val val.csv --model models/main_fusion.pkl --metrics outputs/metrics.json.
 
-README documents make train, make evaluate, make predict, and make test as the normal workflow.
+README documents make train, make evaluate, make predict, make web, and make test as the normal workflow.
