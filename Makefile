@@ -1,7 +1,7 @@
-.PHONY: install train evaluate predict test clean
+.PHONY: install train evaluate evaluation predict test clean
 
 PYTHON ?= python
-MODEL ?= models/ensemble.pkl
+MODEL ?= models/main_fusion.pkl
 TRAIN ?= train.csv
 VAL ?= val.csv
 TEXT ?= Swiss museum confirms it will take on \#Gurlitt collection
@@ -14,6 +14,8 @@ train:
 
 evaluate:
 	$(PYTHON) evaluate.py --model $(MODEL) --data $(VAL) --train $(TRAIN) --out-dir outputs
+
+evaluation: evaluate
 
 predict:
 	$(PYTHON) predict.py --model $(MODEL) --train $(TRAIN) --text "$(TEXT)"

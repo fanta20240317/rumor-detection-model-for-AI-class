@@ -149,11 +149,80 @@ def tune_evidence(model, fit_rows, dev_rows, top_k_values=(3, 5, 7)):
                         best = result
     return best
 
+
+PRECISION_CALIBRATION_BLEND = 0.45
+
+DEFAULT_NONRUMOR_GUARD = {
+    "type": "nonrumor_retrieval_guard",
+    "min_similarity": 0.30,
+    "max_weighted_rumor_score": 0.40,
+    "min_confidence": 0.25,
+    "delta": 0.10,
+}
+
+DEFAULT_RUMOR_RESCUE_GUARD = {
+    "min_weighted_rumor_score": 0.55,
+    "min_similarity": 0.18,
+    "min_confidence": 0.0,
+    "min_prob": 0.0,
+    "max_prob": 0.45,
+    "delta": 0.09,
+}
+
+DEFAULT_ACCURACY_GUARD = {
+    "type": "retrieval_accuracy_guard",
+    "nonrumor_guard": DEFAULT_NONRUMOR_GUARD,
+    "rumor_rescue_guard": DEFAULT_RUMOR_RESCUE_GUARD,
+}
+
+
+def calibrate_precision_threshold(dev_labels, dev_probs, recall_threshold):
+    """Blend recall-friendly and accuracy-friendly thresholds for final use."""
+    accuracy_result = find_best_threshold(
+        dev_labels,
+        dev_probs,
+        start=0.20,
+        end=0.80,
+        step=0.001,
+        objective="accuracy",
+    )
+    accuracy_threshold = accuracy_result["threshold"]
+    calibrated_threshold = round(
+        recall_threshold
+        + PRECISION_CALIBRATION_BLEND * (accuracy_threshold - recall_threshold),
+        3,
+    )
+    calibrated_result = metrics(dev_labels, dev_probs, calibrated_threshold)
+    return {
+        "recall_friendly_threshold": recall_threshold,
+        "accuracy_friendly_threshold": accuracy_threshold,
+        "calibrated_threshold": calibrated_threshold,
+        "accuracy_friendly_metrics": accuracy_result,
+        "calibrated_metrics": calibrated_result,
+        "blend_toward_accuracy": PRECISION_CALIBRATION_BLEND,
+        "strategy": "weighted_blend_between_f1_recall_and_accuracy_thresholds",
+    }
+
+
+def refit_selected_ensemble(selected_model, rows):
+    config_by_name = {config["name"]: config for config in ENSEMBLE_SEARCH_CONFIGS}
+    configs = [config_by_name[name] for name in selected_model.model_names]
+    final_model = EnsembleRumorModel()
+    final_model.fit(
+        [row["text"] for row in rows],
+        [row["label"] for row in rows],
+        configs=configs,
+    )
+    final_model.threshold = selected_model.threshold
+    final_model.weights = list(selected_model.weights)
+    return final_model
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", default="train.csv")
     parser.add_argument("--val", default="val.csv")
-    parser.add_argument("--model", default="models/ensemble.pkl")
+    parser.add_argument("--model", default="models/main_fusion.pkl")
     parser.add_argument("--metrics", default="outputs/metrics.json")
     parser.add_argument("--dev-ratio", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=2026)
@@ -184,41 +253,70 @@ def main():
     fit_retriever = TfidfEvidenceRetriever(model.models[0], fit_rows, fit_vectors)
     dev_pipeline = RumorDetectionPipeline(model, retriever=fit_retriever)
 
-    retriever = TfidfEvidenceRetriever.from_csv(model.models[0], args.train)
-    pipeline = RumorDetectionPipeline(model, retriever=retriever)
-
     dev_probs = [
         dev_pipeline.predict_proba_one(text, top_k=model.evidence_top_k)
         for text in dev_texts
     ]
+    threshold_calibration = calibrate_precision_threshold(
+        dev_labels,
+        dev_probs,
+        evidence_selection["threshold"],
+    )
+
+    final_model = refit_selected_ensemble(model, train_rows)
+    final_model.evidence_weights = evidence_selection["evidence_weights"]
+    final_model.retrieval_min_similarity = evidence_selection[
+        "retrieval_min_similarity"
+    ]
+    final_model.evidence_top_k = evidence_selection["top_k"]
+    final_model.evidence_threshold = threshold_calibration["calibrated_threshold"]
+    final_model.probability_guard = {
+        "type": DEFAULT_ACCURACY_GUARD["type"],
+        "nonrumor_guard": dict(DEFAULT_NONRUMOR_GUARD),
+        "rumor_rescue_guard": dict(DEFAULT_RUMOR_RESCUE_GUARD),
+    }
+    final_model.training_mode = "accuracy_rescue_fusion"
+    final_model.threshold_calibration = threshold_calibration
+
+    retriever = TfidfEvidenceRetriever.from_csv(final_model.models[0], args.train)
+    pipeline = RumorDetectionPipeline(final_model, retriever=retriever)
+
     val_texts = [row["text"] for row in val_rows]
     val_labels = [row["label"] for row in val_rows]
     val_probs = [
-        pipeline.predict_proba_one(text, top_k=model.evidence_top_k)
+        pipeline.predict_proba_one(text, top_k=final_model.evidence_top_k)
         for text in val_texts
     ]
 
-    dev_result = metrics(dev_labels, dev_probs, model.evidence_threshold)
-    validation_result = metrics(val_labels, val_probs, model.evidence_threshold)
+    dev_result = threshold_calibration["calibrated_metrics"]
+    validation_result = metrics(
+        val_labels,
+        val_probs,
+        final_model.evidence_threshold,
+    )
     report = {
         **validation_result,
-        "selected_models": model.model_names,
-        "weights": model.weights,
+        "selected_models": final_model.model_names,
+        "weights": final_model.weights,
         "model_selection": selection,
         "evidence_selection": evidence_selection,
+        "threshold_calibration": threshold_calibration,
         "train_size": len(train_rows),
         "fit_size": len(fit_rows),
         "dev_size": len(dev_rows),
         "validation_size": len(val_rows),
         "dev_ratio": args.dev_ratio,
         "seed": args.seed,
-        "threshold_objective": "f1_recall",
+        "threshold_objective": "precision_calibrated_accuracy",
+        "pipeline": "accuracy_rescue_fusion",
+        "final_refit": "full_train_after_internal_selection",
+        "probability_guard": final_model.probability_guard,
         "dev_metrics": dev_result,
         "validation_metrics": validation_result,
         "validation_data": args.val,
     }
 
-    model.save(args.model)
+    final_model.save(args.model)
     save_json(report, args.metrics)
     print(report)
     print(f"saved model to {Path(args.model).resolve()}")
