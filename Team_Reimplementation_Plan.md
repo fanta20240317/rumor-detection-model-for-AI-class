@@ -1,7 +1,5 @@
 # Team Reimplementation Plan
 
-This staging repository is a reference construction plan. The `plan(Person A/B/C)` labels in commit messages are suggested responsibilities for a future formal repository. They do not represent authorship in this staging repository.
-
 ## Responsibilities
 
 Shifei Zheng:
