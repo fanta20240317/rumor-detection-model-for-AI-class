@@ -156,6 +156,10 @@ produced its label and evidence. It is enabled by default for `predict.py` and
 the web UI. If the school API is not configured, the field still appears with
 `available: false` and an error message; the local model result remains valid.
 
+学校提供的大语言模型接口只作为解释润色模块。分类标签由本地可复现模型输出，
+LLM 不参与标签决策；系统将原始推文、预测标签、置信度、模型证据词和
+RAG 相似样本传入学校模型，由其生成自然语言判断依据。
+
 School LLM configuration is read from environment variables:
 
 ```bash

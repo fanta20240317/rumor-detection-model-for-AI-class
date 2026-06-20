@@ -47,6 +47,7 @@ class RumorPredictionService:
     def predict(self, text, top_k=None, use_llm=None):
         pipeline = self.load_pipeline()
         result = pipeline.predict(text, top_k=top_k, include_explanation=True)
+        result["input_text"] = str(text)
 
         if use_llm is None:
             use_llm = self.use_llm_by_default

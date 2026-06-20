@@ -17,6 +17,10 @@ details.
 LLM from the local model output and evidence only; it must not change the final
 label or introduce outside facts.
 
+学校提供的大语言模型接口作为解释润色模块。分类标签由本地可复现模型输出，
+LLM 不参与标签决策；系统将原始推文、预测标签、置信度、模型证据词和
+RAG 相似样本传入学校模型，由其生成自然语言判断依据。
+
 If the school API is not configured or the request fails, prediction still
 returns local model evidence and sets `llm_evidence.available` to `false`.
 

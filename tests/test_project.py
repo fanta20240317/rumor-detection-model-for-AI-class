@@ -321,6 +321,7 @@ class FinalPipelineTests(unittest.TestCase):
 
     def test_llm_prompt_keeps_final_model_decision(self):
         prediction = {
+            "input_text": "sample claim raw tweet",
             "label_name": "rumor",
             "prob_rumor": 0.72,
             "confidence": 0.72,
@@ -354,6 +355,9 @@ class FinalPipelineTests(unittest.TestCase):
         prompt = build_explanation_prompt(prediction)
 
         self.assertIn('"label_name": "rumor"', prompt)
+        self.assertIn('"original_tweet": "sample claim raw tweet"', prompt)
+        self.assertIn('"model_evidence_terms"', prompt)
+        self.assertIn('"rag_similar_samples"', prompt)
         self.assertIn("不能修改模型给出的最终结论", prompt)
         self.assertIn("breaking", prompt)
 

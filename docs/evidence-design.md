@@ -38,6 +38,9 @@ RumorPredictionService wraps the pipeline for terminal and web prediction. It
 adds `llm_evidence` after the local decision, so LLM output is explanation
 evidence only and never changes `prob_rumor`, thresholding, or the final label.
 
+The LLM prompt receives the original tweet, predicted label, confidence, model
+evidence terms, and RAG-style similar samples retrieved from the training set.
+
 Each prediction returns structured evidence so downstream JSON and reports can be traced back to the same model run.
 
 Decision factors record the contribution of base, retrieval, and structure signals for explanation and debugging.

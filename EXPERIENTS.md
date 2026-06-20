@@ -42,6 +42,9 @@ The saved retrieval accuracy guard can lower high-confidence non-rumor cases or
 rescue borderline rumor cases before thresholding.
 LLM evidence is not used for training, thresholding, or metrics; it only
 rewrites the already emitted model evidence into a Chinese explanation.
+The LLM prompt includes the original tweet, predicted label, confidence, model
+evidence terms, and RAG-style similar samples. The local reproducible model
+remains the only source of classification labels.
 
 ## Reproduction
 

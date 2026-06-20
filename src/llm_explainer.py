@@ -126,8 +126,27 @@ def build_explanation_prompt(prediction):
     guard = evidence.get("probability_guard", {})
     baseline = evidence.get("baseline", {})
 
+    keyword_terms = [
+        item.get("term")
+        for item in evidence.get("keyword_contributions", [])[:8]
+        if item.get("term")
+    ]
+    retrieved_cases = [
+        {
+            "label": item.get("label"),
+            "score": round_float(item.get("score")),
+            "text": item.get("text"),
+        }
+        for item in evidence.get("retrieved_cases", [])[:3]
+    ]
+
     compact_payload = {
-        "input_text": evidence.get("normalized_text"),
+        "original_tweet": prediction.get("input_text") or evidence.get("normalized_text"),
+        "normalized_text": evidence.get("normalized_text"),
+        "prediction_label": prediction.get("label_name"),
+        "confidence": round_float(prediction.get("confidence")),
+        "model_evidence_terms": keyword_terms,
+        "rag_similar_samples": retrieved_cases,
         "final_decision": {
             "label_name": prediction.get("label_name"),
             "prob_rumor": round_float(prediction.get("prob_rumor")),
@@ -148,11 +167,7 @@ def build_explanation_prompt(prediction):
             "retrieval_confidence": retrieval.get("retrieval_confidence"),
         },
         "decision_factors": evidence.get("decision_factors", []),
-        "keyword_terms": [
-            item.get("term")
-            for item in evidence.get("keyword_contributions", [])[:8]
-            if item.get("term")
-        ],
+        "keyword_terms": keyword_terms,
         "claim_structure": evidence.get("claim_structure_features", {}),
         "probability_guard": {
             "applied": guard.get("applied", False),
@@ -161,23 +176,18 @@ def build_explanation_prompt(prediction):
             "prob_before": round_float(guard.get("prob_before")),
             "prob_after": round_float(guard.get("prob_after")),
         },
-        "retrieved_cases": [
-            {
-                "label": item.get("label"),
-                "score": round_float(item.get("score")),
-                "text": item.get("text"),
-            }
-            for item in evidence.get("retrieved_cases", [])[:3]
-        ],
+        "retrieved_cases": retrieved_cases,
         "original_explanation": prediction.get("explanation"),
     }
 
     return (
         "请根据下面 JSON 中的模型输出，为用户生成一段中文解释。\n"
+        "学校大语言模型接口只作为解释润色模块；分类标签由本地可复现模型输出，"
+        "LLM 不参与标签决策。\n"
         "要求：\n"
         "1. 第一句明确说明最终判断是“谣言”还是“非谣言”。\n"
         "2. 不能修改模型给出的最终结论，只解释该结论的依据。\n"
-        "3. 解释要覆盖模型概率、相似案例证据、关键词或结构信号。\n"
+        "3. 解释要覆盖原始推文、预测标签、置信度、模型证据词和 RAG 相似样本。\n"
         "4. 如果概率保护规则被触发，说明它如何影响概率。\n"
         "5. 不要声称你查询了互联网，也不要引入 JSON 之外的新事实。\n"
         "6. 控制在 120 到 180 个中文字符左右。\n\n"
