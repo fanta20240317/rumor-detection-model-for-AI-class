@@ -1,7 +1,7 @@
 # Windows Command Notes
 
-Makefile exposes make train, make evaluate, make predict, make web, and make
-test as the primary reproducibility commands.
+Makefile exposes make train, make evaluate, make robustness, make predict, make
+web, and make test as the primary reproducibility commands.
 
 On Windows PowerShell, use python directly if make is unavailable. The Makefile remains the reference command map.
 
@@ -10,6 +10,7 @@ PowerShell examples:
 ```powershell
 python train.py --train train.csv --val val.csv --model models/main_fusion.pkl --metrics outputs/metrics.json
 python evaluate.py --model models/main_fusion.pkl --data val.csv --train train.csv --out-dir outputs
+python robustness_eval.py --model models/main_fusion.pkl --data val.csv --train train.csv --out-dir outputs
 python predict.py --model models/main_fusion.pkl --train train.csv --text "sample text"
 python web_app.py --model models/main_fusion.pkl --train train.csv
 ```

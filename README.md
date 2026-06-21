@@ -7,7 +7,13 @@
 - `1` 表示 `rumor`，即谣言；
 - `0` 表示 `non-rumor`，即非谣言。
 
-项目采用一条可复现的本地推理流水线：先对输入文本做标准化处理，再使用调优后的 TF-IDF 集成模型输出基础谣言概率；随后从训练集中检索相似样本作为证据，抽取轻量级 claim 结构特征，并将基础模型、检索证据和结构特征融合为最终判断。系统还支持在本地模型完成决策后，调用学校提供的大语言模型接口生成自然语言解释；LLM 只负责解释，不参与标签决策。
+项目采用一条可复现的本地 pipeline :
+- 对输入文本做标准化和安全清洗，减少 zero-width 隐形字符、homoglyph 同形字符、重复字符拉长和异常空白等字符级扰动影响
+- 使用调优后的 TF-IDF 集成模型输出基础谣言概率
+- 从训练集中检索相似样本作为证据，抽取轻量级 claim 结构特征，并将基础模型、检索证据和结构特征融合为最终判断
+  
+项目提供字符级合成扰动鲁棒性评估脚本，用于报告 clean accuracy、attacked accuracy、accuracy drop 和 prediction consistency。
+同时，项目支持在本地模型完成决策后，调用学校提供的大语言模型接口生成自然语言解释；LLM 只负责解释，不参与标签决策。
 
 ### 环境配置
 
@@ -61,7 +67,7 @@ $env:SCHOOL_LLM_MODEL="school-model-name"
 
 本项目默认使用上海交通大学本地大模型 API 中的 `deepseek-chat` 模型作为 LLM 解释生成模型。LLM 只用于生成 `llm_evidence` 自然语言解释，不参与谣言/非谣言标签决策，也不会修改本地模型输出的最终标签。
 
-代码中没有把模型名称写死；`src/llm_explainer.py` 会从环境变量读取配置，并调用 OpenAI 兼容的 chat completions 接口。因此默认模型是 `SCHOOL_LLM_MODEL=deepseek-chat`，如果需要，也可以把该环境变量改成 SJTU API 支持的其他模型。
+但我们提供可选择的模型接口。`src/llm_explainer.py` 会从环境变量读取配置，并调用 OpenAI 兼容的 chat completions 接口。因此默认模型是 `SCHOOL_LLM_MODEL=deepseek-chat`，如果需要，也可以把该环境变量改成 SJTU API 支持的其他模型。
 
 - `SCHOOL_LLM_API_KEY`：学校 API key；
 - `SCHOOL_LLM_BASE_URL`：接口 base URL；
@@ -175,6 +181,48 @@ outputs/explain_cases.json
 
 其中 `evaluation.json` 包含整体指标和按事件划分的指标，`predictions.csv` 保存逐样本预测结果，`explain_cases.json` 保存部分正确和错误样本的结构化解释证据。
 
+### 鲁棒性评估
+
+项目提供自动扰动评估脚本，用于从验证集派生字符级合成对抗样本，并报告 clean/attacked/drop/consistency 指标：
+
+```bash
+python robustness_eval.py --model models/main_fusion.pkl --data val.csv --train train.csv --out-dir outputs
+```
+
+或者：
+
+```bash
+make robustness
+```
+
+当前扰动类型包括：
+
+```text
+zero_width
+homoglyph
+repeat_chars
+whitespace
+casing
+punctuation
+```
+
+这些扰动主要模拟隐形字符、同形字符替换、重复字符拉长、空白变化、大小写变化和标点噪声。由于这些扰动不改变原始语义，扰动样本沿用原验证样本标签。
+
+输出文件：
+
+```text
+outputs/robustness_report.json
+outputs/robustness_predictions.csv
+```
+
+`robustness_report.json` 包含 clean accuracy、attacked accuracy、accuracy drop 和 prediction consistency。`robustness_predictions.csv` 保存每条 clean 样本在各类扰动下的预测变化。
+
+可以使用 `--limit` 做快速检查，或用 `--attacks` 指定部分扰动：
+
+```bash
+python robustness_eval.py --limit 50 --attacks zero_width,homoglyph
+```
+
 ### 单条预测
 
 训练完成并生成模型后，可以对单条文本进行预测：
@@ -253,6 +301,7 @@ make test
 .
 |-- train.py                 # 训练与调参入口
 |-- evaluate.py              # 评估入口
+|-- robustness_eval.py       # 字符级合成扰动鲁棒性评估入口
 |-- predict.py               # 单条文本预测入口
 |-- web_app.py               # 本地 Web UI 服务
 |-- web/                     # 浏览器端页面资源
@@ -404,6 +453,43 @@ outputs/explain_cases.json
 contains one row per evaluated sample. `explain_cases.json` keeps structured
 evidence for selected correct and wrong cases.
 
+## Robustness Evaluation
+
+Run the synthetic character-level robustness benchmark:
+
+```bash
+python robustness_eval.py --model models/main_fusion.pkl --data val.csv --train train.csv --out-dir outputs
+```
+
+or:
+
+```bash
+make robustness
+```
+
+The benchmark derives perturbed samples from the validation set and keeps the
+original labels because the attacks are intended to preserve semantics. Current
+attack types are `zero_width`, `homoglyph`, `repeat_chars`, `whitespace`,
+`casing`, and `punctuation`.
+
+Outputs:
+
+```text
+outputs/robustness_report.json
+outputs/robustness_predictions.csv
+```
+
+The report includes clean accuracy, attacked accuracy, accuracy drop, and
+prediction consistency. Use `--limit` for quick checks and `--attacks` to run a
+subset, for example:
+
+```bash
+python robustness_eval.py --limit 50 --attacks zero_width,homoglyph
+```
+
+This is a synthetic character-level perturbation benchmark, not a manually
+curated adversarial dataset or full adversarial training.
+
 ## Predict
 
 ```bash
@@ -498,6 +584,7 @@ make test
 .
 |-- train.py                 # train and tune the final pipeline
 |-- evaluate.py              # evaluate the final pipeline
+|-- robustness_eval.py       # synthetic character-level robustness evaluation
 |-- predict.py               # single-text prediction with model and LLM evidence
 |-- web_app.py               # local web UI server
 |-- web/                     # browser UI assets

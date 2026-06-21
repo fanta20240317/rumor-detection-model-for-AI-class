@@ -1,4 +1,4 @@
-.PHONY: install train evaluate evaluation predict web test clean
+.PHONY: install train evaluate evaluation robustness predict web test clean
 
 PYTHON ?= python
 MODEL ?= models/main_fusion.pkl
@@ -16,6 +16,9 @@ evaluate:
 	$(PYTHON) evaluate.py --model $(MODEL) --data $(VAL) --train $(TRAIN) --out-dir outputs
 
 evaluation: evaluate
+
+robustness:
+	$(PYTHON) robustness_eval.py --model $(MODEL) --data $(VAL) --train $(TRAIN) --out-dir outputs
 
 predict:
 	$(PYTHON) predict.py --model $(MODEL) --train $(TRAIN) --text "$(TEXT)"
