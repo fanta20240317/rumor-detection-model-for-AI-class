@@ -145,7 +145,7 @@ python train.py --train train.csv --val val.csv --model models/main_fusion.pkl -
 make train
 ```
 
-根据组内经验来看，如果使用 Mac 电脑，训练时间大约在2 ~ 3分钟，若使用 Windows 则时间或许会偏长一些，大约在7 ~ 10分钟左右。
+根据组内经验来看，如果使用 Mac 电脑，训练时间大约在 2 至 3 分钟，若使用 Windows 则时间或许会偏长一些，大约在 7 至 10 分钟左右。
 训练阶段只使用 `train.csv` 进行模型拟合和内部调参。程序会从 `train.csv` 中构造分层内部 dev 集，用于选择 TF-IDF 分支、集成权重、分类阈值和 evidence fusion 参数。`val.csv` 只用于最终验证指标汇报，不参与调参。
 
 训练输出：
