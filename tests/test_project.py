@@ -305,6 +305,17 @@ class FinalPipelineTests(unittest.TestCase):
             "https://api.school.edu/v1/chat/completions",
         )
 
+    @patch.dict(os.environ, {}, clear=True)
+    def test_school_llm_defaults_to_sjtu_deepseek_chat(self):
+        explainer = SchoolLLMExplainer.from_env()
+
+        self.assertEqual(
+            explainer.api_url,
+            "https://models.sjtu.edu.cn/api/v1/chat/completions",
+        )
+        self.assertEqual(explainer.model, "deepseek-chat")
+        self.assertFalse(explainer.is_configured())
+
     def test_llm_response_parser_extracts_message_content(self):
         content = extract_chat_content(
             {"choices": [{"message": {"content": "这是大模型解释"}}]}
