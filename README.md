@@ -1,5 +1,289 @@
 # rumor-detection-model-for-AI-class
 
+## 中文版说明
+
+这是一个面向短文本、社交媒体风格文本的谣言检测项目，任务是二分类：
+
+- `1` 表示 `rumor`，即谣言；
+- `0` 表示 `non-rumor`，即非谣言。
+
+项目采用一条可复现的本地推理流水线：先对输入文本做标准化处理，再使用调优后的 TF-IDF 集成模型输出基础谣言概率；随后从训练集中检索相似样本作为证据，抽取轻量级 claim 结构特征，并将基础模型、检索证据和结构特征融合为最终判断。系统还支持在本地模型完成决策后，调用学校提供的大语言模型接口生成自然语言解释；LLM 只负责解释，不参与标签决策。
+
+### 环境配置
+
+建议使用 Python 虚拟环境：
+
+```bash
+python -m venv .venv
+```
+
+Windows PowerShell 中启用虚拟环境：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+安装依赖：
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+或者使用 Makefile：
+
+```bash
+make install
+```
+
+当前本地模型只依赖 Python 标准库和 `numpy`。如果需要启用学校 LLM 解释功能，需要额外配置环境变量：
+
+```bash
+export SCHOOL_LLM_API_KEY="your-school-api-key"
+export SCHOOL_LLM_BASE_URL="https://school-api.example/v1"
+export SCHOOL_LLM_MODEL="school-model-name"
+```
+
+如果学校提供的是完整 chat-completions 接口，也可以直接设置：
+
+```bash
+export SCHOOL_LLM_API_URL="https://school-api.example/v1/chat/completions"
+```
+
+Windows PowerShell 中可以使用：
+
+```powershell
+$env:SCHOOL_LLM_API_KEY="your-school-api-key"
+$env:SCHOOL_LLM_BASE_URL="https://school-api.example/v1"
+$env:SCHOOL_LLM_MODEL="school-model-name"
+```
+
+### 学校 LLM 接入示例
+
+本项目默认使用上海交通大学本地大模型 API 中的 `deepseek-chat` 模型作为 LLM 解释生成模型。LLM 只用于生成 `llm_evidence` 自然语言解释，不参与谣言/非谣言标签决策，也不会修改本地模型输出的最终标签。
+
+代码中没有把模型名称写死；`src/llm_explainer.py` 会从环境变量读取配置，并调用 OpenAI 兼容的 chat completions 接口。因此默认模型是 `SCHOOL_LLM_MODEL=deepseek-chat`，如果需要，也可以把该环境变量改成 SJTU API 支持的其他模型。
+
+- `SCHOOL_LLM_API_KEY`：学校 API key；
+- `SCHOOL_LLM_BASE_URL`：接口 base URL；
+- `SCHOOL_LLM_API_URL`：完整 chat completions URL，可替代 `SCHOOL_LLM_BASE_URL`；
+- `SCHOOL_LLM_MODEL`：实际调用的模型名；
+- `SCHOOL_LLM_TIMEOUT`：可选，请求超时时间；
+- `SCHOOL_LLM_TEMPERATURE`：可选，解释生成温度。
+
+如果使用上海交通大学本地大模型 API 文档中的 OpenAI 兼容格式，可以按下面方式配置。根据文档示例，base URL 为 `https://models.sjtu.edu.cn/api/v1`，chat completions endpoint 为 `/chat/completions`，默认模型调用名为 `deepseek-chat`。
+
+Linux/macOS:
+
+```bash
+export SCHOOL_LLM_API_KEY="your-sjtu-api-key"
+export SCHOOL_LLM_BASE_URL="https://models.sjtu.edu.cn/api/v1"
+export SCHOOL_LLM_MODEL="deepseek-chat"
+```
+
+Windows PowerShell:
+
+```powershell
+$env:SCHOOL_LLM_API_KEY="your-sjtu-api-key"
+$env:SCHOOL_LLM_BASE_URL="https://models.sjtu.edu.cn/api/v1"
+$env:SCHOOL_LLM_MODEL="deepseek-chat"
+```
+
+也可以直接配置完整接口地址：
+
+```powershell
+$env:SCHOOL_LLM_API_KEY="your-sjtu-api-key"
+$env:SCHOOL_LLM_API_URL="https://models.sjtu.edu.cn/api/v1/chat/completions"
+$env:SCHOOL_LLM_MODEL="deepseek-chat"
+```
+
+配置完成后，运行预测命令即可在结果中的 `llm_evidence` 字段看到 LLM 生成的解释：
+
+```powershell
+python predict.py --model models/main_fusion.pkl --train train.csv --text "sample text"
+```
+
+如果暂时不想调用 LLM，可以加上 `--no-llm`：
+
+```powershell
+python predict.py --model models/main_fusion.pkl --train train.csv --text "sample text" --no-llm
+```
+
+### 数据格式
+
+`train.csv` 和 `val.csv` 需要包含以下字段：
+
+```text
+id,text,label,event
+```
+
+字段含义：
+
+- `id`：样本唯一标识；
+- `text`：待判断的短文本；
+- `label`：分类标签，取值为 `0` 或 `1`；
+- `event`：事件或来源分组，用于内部分层切分和分事件评估。
+
+### 训练方法
+
+默认训练命令：
+
+```bash
+python train.py --train train.csv --val val.csv --model models/main_fusion.pkl --metrics outputs/metrics.json
+```
+
+或者：
+
+```bash
+make train
+```
+
+根据组内经验来看，如果使用 Mac 电脑，训练时间大约在2~3分钟，若使用 Windows 则时间或许会偏长一些，大约在7~10分钟左右。
+训练阶段只使用 `train.csv` 进行模型拟合和内部调参。程序会从 `train.csv` 中构造分层内部 dev 集，用于选择 TF-IDF 分支、集成权重、分类阈值和 evidence fusion 参数。`val.csv` 只用于最终验证指标汇报，不参与调参。
+
+训练输出：
+
+```text
+models/main_fusion.pkl
+outputs/metrics.json
+```
+
+模型文件中保存了选中的子模型、集成权重、基础阈值、证据融合权重、检索 top-k、相似度门限、证据感知阈值，以及最终 pipeline 使用的检索准确性保护规则。
+
+### 评估方法
+
+训练完成后运行：
+
+```bash
+python evaluate.py --model models/main_fusion.pkl --data val.csv --train train.csv --out-dir outputs
+```
+
+或者：
+
+```bash
+make evaluate
+```
+
+评估输出：
+
+```text
+outputs/evaluation.json
+outputs/predictions.csv
+outputs/correct_cases.csv
+outputs/wrong_cases.csv
+outputs/explain_cases.json
+```
+
+其中 `evaluation.json` 包含整体指标和按事件划分的指标，`predictions.csv` 保存逐样本预测结果，`explain_cases.json` 保存部分正确和错误样本的结构化解释证据。
+
+### 单条预测
+
+训练完成并生成模型后，可以对单条文本进行预测：
+
+```bash
+python predict.py --model models/main_fusion.pkl --train train.csv --text "Swiss museum confirms it will take on #Gurlitt collection"
+```
+
+或者：
+
+```bash
+make predict TEXT="Swiss museum confirms it will take on #Gurlitt collection"
+```
+
+预测结果以 JSON 形式输出，主要包含：
+
+```text
+label
+label_name
+prob_rumor
+confidence
+threshold
+baseline_label
+baseline_prob_rumor
+evidence
+explanation
+llm_evidence
+```
+
+如果想禁用 LLM 解释，可以使用：
+
+```bash
+python predict.py --model models/main_fusion.pkl --train train.csv --text "sample text" --no-llm
+```
+
+### Web UI
+
+本项目提供操作较为简便、用户友好的网站服务，但仅仅是本地网站，较为简陋，操作方法如下
+启动本地网页服务：
+
+```bash
+python web_app.py --model models/main_fusion.pkl --train train.csv
+```
+
+或者：
+
+```bash
+make web
+```
+
+然后在浏览器打开：
+
+```text
+http://127.0.0.1:8000
+```
+
+Web UI 使用与 `predict.py` 相同的共享预测服务，会展示本地模型判断、结构化证据，以及在学校 API 配置完成时展示 LLM 生成的解释。
+
+### 测试方法
+
+运行单元测试：
+
+```bash
+python -m unittest discover -s tests
+```
+
+或者：
+
+```bash
+make test
+```
+
+### 项目结构
+
+```text
+.
+|-- train.py                 # 训练与调参入口
+|-- evaluate.py              # 评估入口
+|-- predict.py               # 单条文本预测入口
+|-- web_app.py               # 本地 Web UI 服务
+|-- web/                     # 浏览器端页面资源
+|-- Makefile                 # 常用命令封装
+|-- README.md
+|-- EXPERIENTS.md
+|-- requirements.txt
+|-- train.csv
+|-- val.csv
+|-- tests/
+`-- src/
+    |-- text_model.py        # 文本标准化、TF-IDF 模型、指标计算
+    |-- ensemble_model.py    # TF-IDF 集成模型
+    |-- defense.py           # 输入清洗与防御
+    |-- retriever.py         # 相似训练样本检索
+    |-- evidence.py          # 检索证据特征
+    |-- claim_structure.py   # 轻量级 claim 结构特征
+    |-- evidence_pipeline.py # 最终证据融合推理流水线
+    |-- llm_explainer.py     # 学校 LLM 解释客户端
+    `-- prediction_service.py # CLI 和 Web 共用预测服务
+```
+
+生成产物默认不纳入源码管理：
+
+```text
+models/
+outputs/
+```
+
+## English Version
+
 A simple model estabiled by zsf&amp;lzh&amp;zmx, just a sample designed by 3 college students from SJTU. Maybe we'll improve it in the long run.
 
 Our goal is to build a rumor detector for short social-media style claims.
