@@ -1,4 +1,5 @@
 const sampleText = document.querySelector("#sampleText");
+const splashScreen = document.querySelector("#splashScreen");
 const topK = document.querySelector("#topK");
 const useLlm = document.querySelector("#useLlm");
 const predictButton = document.querySelector("#predictButton");
@@ -55,6 +56,21 @@ function appendTextElement(parent, tagName, text, className) {
   element.textContent = text;
   parent.appendChild(element);
   return element;
+}
+
+function initializeSplash() {
+  if (!splashScreen) return;
+  splashScreen.querySelectorAll(".splash-avatar").forEach((avatar) => {
+    avatar.addEventListener("error", () => {
+      const fallback = document.createElement("span");
+      fallback.className = avatar.className + " avatar-fallback";
+      fallback.textContent = avatar.dataset.fallback || "";
+      avatar.replaceWith(fallback);
+    });
+  });
+  window.setTimeout(() => {
+    splashScreen.classList.add("hidden");
+  }, 4700);
 }
 
 async function loadStatus() {
@@ -300,4 +316,5 @@ document.querySelectorAll(".sample-button").forEach((button) => {
   });
 });
 
+initializeSplash();
 loadStatus();

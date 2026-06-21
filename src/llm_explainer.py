@@ -4,6 +4,9 @@ import urllib.error
 import urllib.request
 
 
+DEFAULT_SCHOOL_LLM_BASE_URL = "https://models.sjtu.edu.cn/api/v1"
+DEFAULT_SCHOOL_LLM_MODEL = "deepseek-chat"
+
 DEFAULT_SYSTEM_PROMPT = (
     "你是一个谣言检测系统的解释生成模块。"
     "你只能根据给定的模型输出和证据解释判断依据，不能修改模型给出的最终结论。"
@@ -34,8 +37,8 @@ class SchoolLLMExplainer:
         return cls(
             api_key=os.getenv("SCHOOL_LLM_API_KEY"),
             api_url=os.getenv("SCHOOL_LLM_API_URL"),
-            base_url=os.getenv("SCHOOL_LLM_BASE_URL"),
-            model=os.getenv("SCHOOL_LLM_MODEL"),
+            base_url=os.getenv("SCHOOL_LLM_BASE_URL", DEFAULT_SCHOOL_LLM_BASE_URL),
+            model=os.getenv("SCHOOL_LLM_MODEL", DEFAULT_SCHOOL_LLM_MODEL),
             timeout=parse_float_env("SCHOOL_LLM_TIMEOUT", 20),
             temperature=parse_float_env("SCHOOL_LLM_TEMPERATURE", 0.2),
         )
@@ -54,8 +57,9 @@ class SchoolLLMExplainer:
     def explain(self, prediction):
         if not self.is_configured():
             raise RuntimeError(
-                "LLM API is not configured. Set SCHOOL_LLM_API_KEY, "
-                "SCHOOL_LLM_BASE_URL or SCHOOL_LLM_API_URL, and SCHOOL_LLM_MODEL."
+                "LLM API is not configured. Set SCHOOL_LLM_API_KEY. "
+                "SCHOOL_LLM_BASE_URL, SCHOOL_LLM_API_URL, and SCHOOL_LLM_MODEL "
+                "are optional overrides."
             )
 
         body = {

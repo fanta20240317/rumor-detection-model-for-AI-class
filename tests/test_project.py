@@ -9,6 +9,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from evaluate import evaluate_rows
+from robustness_eval import (
+    evaluate_robustness,
+    insert_zero_width,
+    stretch_repeated_characters,
+    substitute_homoglyphs,
+)
 from src.defense import sanitize_text
 from src.ensemble_model import EnsembleRumorModel
 from src.evidence import build_retrieval_evidence_features
@@ -152,6 +158,38 @@ class FinalPipelineTests(unittest.TestCase):
     def test_defense_sanitization_is_shared_by_pipeline(self):
         self.assertEqual(sanitize_text("g\u043e\u200bv\u0435rnment"), "government")
 
+    def test_synthetic_attack_generators_preserve_sanitized_text(self):
+        text = "government official update"
+        stretched = stretch_repeated_characters(text)
+
+        self.assertEqual(sanitize_text(insert_zero_width(text)), text)
+        self.assertEqual(sanitize_text(substitute_homoglyphs(text)), text)
+        self.assertLess(len(sanitize_text(stretched)), len(stretched))
+        self.assertIn("government"[1:], sanitize_text(stretched))
+
+    def test_robustness_evaluation_reports_drop_and_consistency(self):
+        ensemble = EnsembleRumorModel(
+            models=[ConstantModel(0.7), ConstantModel(0.7)],
+            model_names=["left", "right"],
+            threshold=0.5,
+        )
+        rows = [
+            {"id": "1", "event": 0, "text": "breaking report", "label": 1},
+            {"id": "2", "event": 0, "text": "official update", "label": 1},
+        ]
+
+        result = evaluate_robustness(
+            RumorDetectionPipeline(ensemble),
+            rows,
+            attack_names=["zero_width", "homoglyph"],
+        )
+
+        self.assertEqual(result["clean"]["accuracy"], 1.0)
+        self.assertEqual(result["attacked"]["accuracy"], 1.0)
+        self.assertEqual(result["attacked"]["accuracy_drop"], 0.0)
+        self.assertEqual(result["attacked"]["prediction_consistency"], 1.0)
+        self.assertEqual(len(result["prediction_rows"]), 4)
+
     def test_retrieval_features_summarize_top_k_evidence(self):
         rows = [
             {"id": "1", "event": 0, "label": 1, "text": "breaking report confirmed"},
@@ -266,6 +304,17 @@ class FinalPipelineTests(unittest.TestCase):
             ),
             "https://api.school.edu/v1/chat/completions",
         )
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_school_llm_defaults_to_sjtu_deepseek_chat(self):
+        explainer = SchoolLLMExplainer.from_env()
+
+        self.assertEqual(
+            explainer.api_url,
+            "https://models.sjtu.edu.cn/api/v1/chat/completions",
+        )
+        self.assertEqual(explainer.model, "deepseek-chat")
+        self.assertFalse(explainer.is_configured())
 
     def test_llm_response_parser_extracts_message_content(self):
         content = extract_chat_content(
@@ -480,6 +529,24 @@ class FinalPipelineTests(unittest.TestCase):
                 check=True,
                 stdout=subprocess.DEVNULL,
             )
+            subprocess.run(
+                [
+                    sys.executable,
+                    "robustness_eval.py",
+                    "--model",
+                    str(model_path),
+                    "--data",
+                    str(val_path),
+                    "--train",
+                    str(train_path),
+                    "--out-dir",
+                    str(out_dir),
+                    "--attacks",
+                    "zero_width,homoglyph",
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
             prediction = subprocess.run(
                 [
                     sys.executable,
@@ -502,6 +569,8 @@ class FinalPipelineTests(unittest.TestCase):
             self.assertTrue(model_path.exists())
             self.assertTrue(metrics_path.exists())
             self.assertTrue((out_dir / "evaluation.json").exists())
+            self.assertTrue((out_dir / "robustness_report.json").exists())
+            self.assertTrue((out_dir / "robustness_predictions.csv").exists())
             self.assertIn(payload["label"], (0, 1))
             self.assertIn("evidence", payload)
             self.assertIn("llm_evidence", payload)
@@ -517,6 +586,16 @@ class FinalPipelineTests(unittest.TestCase):
             self.assertIn("probability_guard", metrics_payload)
             self.assertIn("validation_size", metrics_payload)
             self.assertNotIn("test_size", metrics_payload)
+            robustness_payload = json.loads(
+                (out_dir / "robustness_report.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("clean", robustness_payload)
+            self.assertIn("attacked", robustness_payload)
+            self.assertIn("accuracy_drop", robustness_payload["attacked"])
+            self.assertIn(
+                "prediction_consistency",
+                robustness_payload["attacked"],
+            )
 
 
 if __name__ == "__main__":
