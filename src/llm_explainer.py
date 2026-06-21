@@ -57,8 +57,9 @@ class SchoolLLMExplainer:
     def explain(self, prediction):
         if not self.is_configured():
             raise RuntimeError(
-                "LLM API is not configured. Set SCHOOL_LLM_API_KEY, "
-                "SCHOOL_LLM_BASE_URL or SCHOOL_LLM_API_URL, and SCHOOL_LLM_MODEL."
+                "LLM API is not configured. Set SCHOOL_LLM_API_KEY. "
+                "SCHOOL_LLM_BASE_URL, SCHOOL_LLM_API_URL, and SCHOOL_LLM_MODEL "
+                "are optional overrides."
             )
 
         body = {

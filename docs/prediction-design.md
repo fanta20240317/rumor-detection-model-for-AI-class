@@ -24,8 +24,11 @@ RAG 相似样本传入学校模型，由其生成自然语言判断依据。
 If the school API is not configured or the request fails, prediction still
 returns local model evidence and sets `llm_evidence.available` to `false`.
 
-Required school-LLM environment variables are `SCHOOL_LLM_API_KEY`,
-`SCHOOL_LLM_MODEL`, and either `SCHOOL_LLM_BASE_URL` or `SCHOOL_LLM_API_URL`.
+The default school-LLM endpoint is the SJTU OpenAI-compatible API at
+`https://models.sjtu.edu.cn/api/v1`, and the default model is `deepseek-chat`.
+The only required environment variable for LLM evidence is
+`SCHOOL_LLM_API_KEY`. `SCHOOL_LLM_MODEL`, `SCHOOL_LLM_BASE_URL`, and
+`SCHOOL_LLM_API_URL` are optional overrides.
 
 `make predict` uses the default model and train evidence paths with an
 overridable `TEXT` variable. `python predict.py --no-llm ...` disables LLM
